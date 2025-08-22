@@ -759,7 +759,7 @@ elif mode == "Lead time & LOS":
             st.info("Sin reservas en el rango seleccionado.")
         else:
             df["lead_days"] = (df["Fecha entrada"].dt.normalize() - df["Fecha alta"].dt.normalize()).dt.days.clip(lower=0)
-            df["los"] = (df["Fecha salida"].dt.normalize() - df["Fecha entrada"].dt.normalize()).dt.days.clip(lower=0)
+            df["los"] = (df["Fecha salida"].dt.normalize() - df["Fecha entrada"].dt.normalize()).dt.days.clip(lower=1)
             # Percentiles Lead
             pcts = [50, 75, 90]
             lt_p = {f"P{p}": np.percentile(df["lead_days"], p) for p in pcts}
@@ -771,11 +771,11 @@ elif mode == "Lead time & LOS":
 
             # Histogramas como tablas (conteos por bins estándar)
             lt_bins = [0,3,7,14,30,60,120,1e9]
-            los_bins = [1,2,3,4,5,7,10,14,21,30,1e9]
+            los_bins = [1,2,3,4,5,7,10,14,21,30, np.inf]
             lt_labels = ["0-3","4-7","8-14","15-30","31-60","61-120","120+"]
-            los_labels = ["1","2","3","4","5","6-7","8-10","11-14","15-21","22-30","30+"]
+            los_labels = ["1","2","3","4","5-7","8-10","11-14","15-21","22-30","30+"]
             lt_cat = pd.cut(df["lead_days"], bins=lt_bins, labels=lt_labels, right=True)
-            los_cat = pd.cut(df["los"], bins=los_bins, labels=los_labels, right=True)
+            los_cat = pd.cut(df["los"], bins=los_bins, labels=los_labels, right=True, include_lowest=True)
             lt_tab = lt_cat.value_counts().reindex(lt_labels).fillna(0).astype(int).rename_axis("Lead bin").reset_index(name="Reservas")
             los_tab = los_cat.value_counts().reindex(los_labels).fillna(0).astype(int).rename_axis("LOS bin").reset_index(name="Reservas")
             st.markdown("**Lead time (reservas)**")
@@ -824,7 +824,7 @@ elif mode == "DOW heatmap":
                 continue
             adr_night = p / n_nights if n_nights > 0 else 0.0
             for d in pd.date_range(ov_start, ov_end - pd.Timedelta(days=1), freq='D'):
-                rows.append({"Mes": d.strftime('%Y-%m'), "DOW": d.day_name(locale='es_ES') if hasattr(d, 'day_name') else d.day_name(), "Noches": 1, "ADR": adr_night})
+                rows.append({"Mes": d.strftime('%Y-%m'), "DOW": ("Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo")[d.weekday()], "Noches": 1, "ADR": adr_night})
         if not rows:
             st.info("Sin datos en el rango.")
         else:
@@ -834,7 +834,7 @@ elif mode == "DOW heatmap":
             else:
                 piv = df_n.pivot_table(index="DOW", columns="Mes", values="ADR", aggfunc='mean', fill_value=0.0)
             # Orden DOW
-            dow_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+            dow_order = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
             piv = piv.reindex(dow_order)
             st.dataframe(piv, use_container_width=True)
             csvh = piv.reset_index().to_csv(index=False).encode("utf-8-sig")
